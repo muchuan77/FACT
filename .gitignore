@@ -54,3 +54,26 @@ experiments/_runs/
 experiments/_checkpoints/
 fact_model_service/models/
 
+# FACT crawler selection generated mock samples
+experiments/crawler_selection_experiment/mock_sources/
+
+# Real validation local config
+experiments/crawler_selection_experiment/real_world_validation/validation_sources.local.json
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Virtual envs
+venv/
+.venv/
+env/
+
+# Local database
+db.sqlite3
+
+# Logs
+*.log
+
+# FACT crawler selection results
+experiments/crawler_selection_experiment/results/

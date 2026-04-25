@@ -1,0 +1,99 @@
+{
+  "base_dir": "experiments/crawler_selection_experiment",
+  "scenarios": [
+    {
+      "id": "static_news",
+      "name": "场景A：静态新闻/公告网页",
+      "entry": "mock_sources/static_news",
+      "methods": [
+        {
+          "collector": "requests_bs4_static",
+          "method": "Requests + BeautifulSoup",
+          "resource_cost_score": 2,
+          "maintainability_score": 7,
+          "scalability_score": 6,
+          "integration_score": 9
+        },
+        {
+          "collector": "aiohttp_bs4_static",
+          "method": "aiohttp + BeautifulSoup",
+          "resource_cost_score": 3,
+          "maintainability_score": 6,
+          "scalability_score": 7,
+          "integration_score": 8
+        },
+        {
+          "collector": "scrapy_static",
+          "method": "Scrapy",
+          "resource_cost_score": 4,
+          "maintainability_score": 7,
+          "scalability_score": 9,
+          "integration_score": 8
+        }
+      ]
+    },
+    {
+      "id": "rss_api",
+      "name": "场景B：RSS/API 结构化信息源",
+      "entry": "mock_sources/rss_api",
+      "methods": [
+        {
+          "collector": "requests_rss_api",
+          "method": "Requests",
+          "resource_cost_score": 1,
+          "maintainability_score": 7,
+          "scalability_score": 6,
+          "integration_score": 9
+        },
+        {
+          "collector": "feedparser_rss_api",
+          "method": "Requests + feedparser",
+          "resource_cost_score": 2,
+          "maintainability_score": 8,
+          "scalability_score": 7,
+          "integration_score": 9
+        },
+        {
+          "collector": "scrapy_rss_api",
+          "method": "Scrapy",
+          "resource_cost_score": 3,
+          "maintainability_score": 6,
+          "scalability_score": 8,
+          "integration_score": 7
+        }
+      ]
+    },
+    {
+      "id": "dynamic_page",
+      "name": "场景C：动态渲染页面",
+      "entry": "mock_sources/dynamic_page",
+      "methods": [
+        {
+          "collector": "requests_xhr_dynamic",
+          "method": "Requests + XHR/API replay",
+          "resource_cost_score": 2,
+          "maintainability_score": 5,
+          "scalability_score": 5,
+          "integration_score": 8
+        },
+        {
+          "collector": "scrapy_playwright_dynamic",
+          "method": "Scrapy + Playwright",
+          "resource_cost_score": 6,
+          "maintainability_score": 9,
+          "scalability_score": 9,
+          "integration_score": 9
+        },
+        {
+          "collector": "playwright_dynamic",
+          "method": "Playwright",
+          "resource_cost_score": 9,
+          "maintainability_score": 7,
+          "scalability_score": 6,
+          "integration_score": 6
+        }
+      ]
+    }
+  ]
+}
+

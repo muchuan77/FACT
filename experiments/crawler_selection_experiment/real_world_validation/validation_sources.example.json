@@ -1,0 +1,27 @@
+{
+  "static_news": [
+    {
+      "name": "example_static_news",
+      "url": "https://example.com/news-page",
+      "collector": "scrapy_static",
+      "enabled": false
+    }
+  ],
+  "rss_api": [
+    {
+      "name": "example_rss_feed",
+      "url": "https://example.com/rss.xml",
+      "collector": "feedparser_rss_api",
+      "enabled": false
+    }
+  ],
+  "dynamic_page": [
+    {
+      "name": "example_dynamic_page",
+      "url": "https://example.com/dynamic",
+      "collector": "playwright_dynamic",
+      "enabled": false
+    }
+  ]
+}
+
