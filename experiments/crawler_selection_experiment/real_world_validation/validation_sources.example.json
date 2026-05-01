@@ -1,26 +1,44 @@
 {
   "static_news": [
     {
-      "name": "example_static_news",
-      "url": "https://example.com/news-page",
+      "name": "china_gov_policy_static",
+      "region": "domestic_cn",
+      "url": "https://www.gov.cn/zhengce/",
       "collector": "scrapy_static",
-      "enabled": false
+      "enabled": false,
+      "max_items": 10,
+      "description": "中国政府网政策栏目，用于验证 Scrapy 对国内中文政务公开页面的静态采集能力。"
     }
   ],
   "rss_api": [
     {
-      "name": "example_rss_feed",
-      "url": "https://example.com/rss.xml",
+      "name": "china_daily_china_rss",
+      "region": "domestic_cn",
+      "url": "http://www.chinadaily.com.cn/rss/china_rss.xml",
       "collector": "feedparser_rss_api",
-      "enabled": false
+      "enabled": false,
+      "max_items": 20,
+      "description": "中国日报 China News RSS，用于验证 Requests + feedparser 对国内新闻 RSS 结构化源的解析能力。"
+    },
+    {
+      "name": "chinanews_society_rss",
+      "region": "domestic_cn",
+      "url": "https://www.chinanews.com.cn/rss/society.xml",
+      "collector": "feedparser_rss_api",
+      "enabled": false,
+      "max_items": 20,
+      "description": "中国新闻网社会新闻 RSS，用于作为国内 RSS 备用验证源。"
     }
   ],
   "dynamic_page": [
     {
-      "name": "example_dynamic_page",
-      "url": "https://example.com/dynamic",
-      "collector": "playwright_dynamic",
-      "enabled": false
+      "name": "nbs_data_dynamic",
+      "region": "domestic_cn",
+      "url": "https://data.stats.gov.cn/",
+      "collector": "scrapy_playwright_dynamic",
+      "enabled": false,
+      "max_items": 10,
+      "description": "国家统计局国家数据平台，为 JavaScript 渲染页面，用于验证 Scrapy + Playwright 对国内公开动态页面的渲染与字段抽取能力。"
     }
   ]
 }

@@ -116,15 +116,59 @@ python experiments/crawler_selection_experiment/real_world_validation/run_real_v
 
 输出：
 
-- `results/real_validation_result.csv`
-- `results/real_validation_result.json`
+- `results/stage2_real_world/real_validation_result.csv`
+- `results/stage2_real_world/real_validation_result.json`
 
 ### 3) 合规要求（必须遵守）
 
-- 遵守 `robots.txt`（无法确认则 skipped）
+- 遵守 `robots.txt`：明确不允许则 skipped；无法确认则 `robots_unknown`，不强行采集
 - 请求间隔 1~3 秒
 - 不做登录、验证码、反爬绕过
 - 不采集个人隐私数据
+
+### 4) 第二阶段最小真实验证（国内公开源 MVP）
+
+本阶段仅用于验证第一阶段选型在国内公开源的**可落地性**（合规/可访问/字段抽取），不做大规模采集，不作为训练数据来源。
+
+当前推荐验证源（国内公开源）：
+
+- **static_news**：`china_gov_policy_static`
+- **rss_api**：`china_daily_china_rss`、`chinanews_society_rss`
+- **dynamic_page**：`nbs_data_dynamic`（国家统计局国家数据平台，JavaScript 渲染页面，适合作为 Scrapy + Playwright 的动态页面 MVP 验证源）
+
+1. 复制配置文件（默认不提供本地配置，避免误触发外网访问）：
+
+PowerShell:
+
+```powershell
+Copy-Item experiments\crawler_selection_experiment\real_world_validation\validation_sources.local.json.example `
+  experiments\crawler_selection_experiment\real_world_validation\validation_sources.local.json
+```
+
+2. 安装第二阶段依赖（一次即可）：
+
+```bash
+python -m pip install -r experiments/crawler_selection_experiment/requirements.txt
+python -m playwright install chromium
+```
+
+3. 编辑 `validation_sources.local.json`：把 3 个源的 `enabled` 改为 `true`（其余保持默认）。
+
+4. 运行：
+
+```bash
+python experiments/crawler_selection_experiment/real_world_validation/run_real_validation.py
+```
+
+5. 查看结果：
+
+- `experiments/crawler_selection_experiment/results/stage2_real_world/real_validation_result.csv`
+
+运行策略补充：
+
+- 若 `china_daily_china_rss` 解析失败，可改为启用 `chinanews_society_rss` 作为**备用 RSS 验证源**（不要默认启用）。
+- `robots_unknown` **不代表采集技术失败**：表示 robots.txt 获取/解析失败导致无法确认许可；按合规策略不执行正式采集，结果应在论文中解释为“合规检查不确定”，而非技术能力不足。
+- 第二阶段真实验证以“**可诊断、可解释**”为目标：不会强行绕过 robots、SSL 异常、验证码或反爬。
 
 ## 说明
 

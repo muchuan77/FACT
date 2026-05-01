@@ -125,7 +125,7 @@ final\_score =
 
 - 仅选择**少量**公开可访问源（不追求大规模采集）
 - 只运行 `enabled=true` 的源；默认不访问外网
-- 必须遵守 `robots.txt`，无法确认时直接 skipped
+- 必须遵守 `robots.txt`：明确不允许则 skipped；无法确认则 `robots_unknown`，不强行采集
 - 访问频率限制：请求间 sleep 1~3 秒
 - 不做登录、验证码、反爬绕过；不采集个人隐私数据
 
@@ -137,8 +137,31 @@ final\_score =
 
 输出到：
 
-- `experiments/crawler_selection_experiment/results/real_validation_result.csv`
-- `experiments/crawler_selection_experiment/results/real_validation_result.json`
+- `experiments/crawler_selection_experiment/results/stage2_real_world/real_validation_result.csv`
+- `experiments/crawler_selection_experiment/results/stage2_real_world/real_validation_result.json`
+
+本阶段只验证：
+
+1. robots 合规检查；
+2. 页面/接口是否可访问；
+3. 是否能抽取统一字段；
+4. 字段完整率是否达到最低要求（`field_completeness >= 0.6`）。
+
+重要约束：
+
+- 本阶段不做大规模数据采集，不作为训练数据来源；
+- 第二阶段结果仅作为后续 `fact_crawler` 工程化落地与规则补齐的依据。
+
+论文写作口径建议（避免误判）：
+
+- `robots_unknown` 不应计为采集技术失败：它表示 robots.txt 获取/解析失败导致许可状态无法确认；按合规策略未执行正式采集，应归类为“合规检查阶段不确定性/环境约束”，并在论文中明确说明“不绕过、不强采集”。
+
+动态验证源替换说明（第二阶段 MVP）：
+
+1. 原 `china_gov_policy_library_dynamic` 虽然 robots 与 HTTP 访问通过，但返回内容较短、字段抽取失败，说明该源更适合作为后续“复杂动态/检索型页面”优化对象。
+2. 为保证第二阶段 MVP 验证闭环与可解释性，改用 **国家统计局国家数据平台**（`nbs_data_dynamic`）作为更简单、稳定的动态验证源。
+3. 国家数据平台需要 JavaScript 渲染，能够体现 **Scrapy + Playwright** 相对普通静态请求的必要性。
+4. 该替换不改变第一阶段技术选型结论，仅调整第二阶段真实源验证样本。
 
 ### 9.4 结论融合
 
