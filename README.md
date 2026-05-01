@@ -63,6 +63,35 @@ FACT（Full name: **F**alsehood & **A**larm **C**ontrol for public **T**rends）
   - 已实现最小业务闭环：**新增舆情 → 触发分析 → 保存分析结果 → 生成风险预警 → dashboard 汇总统计**
   - `POST /api/opinions/{id}/analyze/` 已加入**幂等逻辑**：重复调用不会重复创建 `AnalysisResult` 与 `RiskWarning`
 
+## v1.1.0：第一阶段 mock 爬虫技术选型实验（已完成）
+
+目标：在本地 `mock_sources/` 上完成受控对比实验，为三类采集场景确定唯一技术路线（不访问外网）。
+
+- static_news（静态新闻/公告网页）→ **Scrapy**
+- rss_api（RSS/API 结构化信息源）→ **Requests + feedparser**
+- dynamic_page（动态渲染页面）→ **Scrapy + Playwright**
+
+产出：`experiments/crawler_selection_experiment/results/` 下的对比结果 CSV/JSON、结论 markdown 与论文插图。
+
+## v1.2.0：第二阶段国内真实公开源验证（已完成）
+
+目标：在**国内公开源**上做小规模验证，确认第一阶段选型在真实环境中的可落地性（合规优先，不做大规模采集）。
+
+- robots 合规检查 + 可访问性验证 + 字段抽取完整性验证
+- 输出汇总与明细：
+  - `experiments/crawler_selection_experiment/results/stage2_real_world/real_validation_result.csv|json`
+  - `experiments/crawler_selection_experiment/results/stage2_real_world/real_validation_items.csv|json`
+
+## v1.3.0：爬虫任务控制中心 + RSS 自动采集闭环（开发中）
+
+本版本用于将实验结论落地到工程框架中（不再做实验对比）：
+
+- static_news → Scrapy（v1.4.0 适配器实现）
+- rss_api → Requests + feedparser（v1.3.0 优先落地）
+- dynamic_page → Scrapy + Playwright（v1.5.0 适配器实现）
+
+后端新增 `/api/crawler/*` 任务控制中心，支持 sources/topics/tasks/runs/items 与 `run-now`（v1.3.0 同步执行 RSS），采集结果写入 `OpinionData` 并可选自动触发分析，从而让 Dashboard/Warnings/Analysis 看到自动采集后的数据。
+
 ## 文档入口
 
 - 后端 API 文档：`docs/backend-api.md`
@@ -102,4 +131,14 @@ python manage.py runserver 127.0.0.1:8000
 - `http://127.0.0.1:8000/api/`
 - `http://127.0.0.1:8000/api/dashboard/summary/`
 - `http://127.0.0.1:8000/api/opinions/`
+
+## Windows 中文请求注意事项（开发环境）
+
+- 在 Windows PowerShell 中，直接用 `Invoke-RestMethod`/`curl.exe` 发送中文 JSON **可能出现乱码入库**（与终端编码/JSON 序列化相关）。
+- 推荐使用 Python `requests.post(..., json=payload)` 方式测试中文任务与关键词（见 `scripts/test_create_chinese_crawler_task.py`）。
+- `scripts/test_create_chinese_crawler_task.py --no-keyword-filter`：用于验证**中文采集闭环**（不做关键词过滤，直接采集前 N 条）。
+- `scripts/test_create_chinese_crawler_task.py --keyword 社会`：用于验证**主动搜索过滤能力**（关键词命中才入库）。
+- 开发阶段若数据库已出现历史乱码/测试数据，可执行：
+  - `python manage.py reset_demo_data --yes`
+  - `python manage.py seed_crawler_sources`
 

@@ -110,3 +110,48 @@
 
 FACT 手动录入型 MVP 已完成并通过联调测试：前端可录入舆情、提取/编辑关键词、触发分析并查看分析结果与风险预警；后端可落库并提供 dashboard 汇总统计；模型服务以 mock 推理稳定输出固定 JSON 结构。已在 `docs/releases/v1.0.0.md` 固化本版本功能清单、限制与下一步计划。
 
+## 2026-04-30 FACT v1.1.0 第一阶段 mock 爬虫技术选型实验完成
+
+本阶段目标：在本地 `mock_sources/` 上进行受控对比实验，形成“按场景唯一选型 + 淘汰原因”的论文级结论。
+
+- 场景与结论：
+  - static_news → **Scrapy**
+  - rss_api → **Requests + feedparser**
+  - dynamic_page → **Scrapy + Playwright**
+- 产出：
+  - `results/crawler_selection_result.csv|json`
+  - `results/selection_conclusion.md`
+  - `results/figures/*.png`（论文插图）
+
+## 2026-05-01 FACT v1.2.0 第二阶段国内真实公开源验证完成
+
+本阶段目标：对第一阶段选型进行国内公开源小规模验证，强调合规与可诊断性，不追求大规模采集。
+
+- 合规策略：robots 明确禁止则 skipped；robots 不可确认则 robots_unknown，不强采集、不绕过 SSL/验证码/反爬。
+- 推荐验证源：
+  - static_news：`china_gov_policy_static`
+  - rss_api：`china_daily_china_rss`（主）+ `chinanews_society_rss`（备用）
+  - dynamic_page：`nbs_data_dynamic`（国家统计局国家数据平台，JavaScript 渲染）
+- 产出（stage2 统一目录）：
+  - `results/stage2_real_world/real_validation_result.csv|json`（汇总）
+  - `results/stage2_real_world/real_validation_items.csv|json`（抽取明细）
+
+## 2026-05-01 FACT v1.3.0 爬虫任务控制中心（进行中）
+
+本阶段目标：将 v1.1/v1.2 实验结论落地到系统工程中，优先打通 **RSS 自动采集入库闭环**，并建立可扩展的多适配器爬虫框架。
+
+- 后端新增：`/api/crawler/*` 任务控制中心（sources/topics/tasks/runs/items + start/pause/resume/stop/run-now）
+- 数据模型：CrawlerSource / TopicProfile / CrawlerTask / CrawlerRun / CrawledItem
+- fact_crawler：Adapter 接口 + runner；RSS（Requests + feedparser）adapter 真实实现；static/dynamic adapter 预留到后续版本
+- run-now：同步执行 RSS，写入 OpinionData，并可选触发 analyze 生成 Analysis/Warnings/Dashboard 可见数据
+
+### Windows 中文测试备注
+
+- PowerShell 直接发送中文 JSON 可能导致入库字段乱码（如 task_name/keywords/source.name）。
+- 建议使用 Python requests 脚本测试中文：`scripts/test_create_chinese_crawler_task.py`
+- `--no-keyword-filter`：用于验证中文采集闭环（不做关键词过滤，直接采集前 N 条）
+- `--keyword`：用于验证主动搜索过滤能力（关键词命中才入库）
+- 若历史测试数据已产生乱码，可先清理再 seed：
+  - `python manage.py reset_demo_data --yes`
+  - `python manage.py seed_crawler_sources`
+

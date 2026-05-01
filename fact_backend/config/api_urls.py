@@ -22,5 +22,6 @@ urlpatterns = [
     path("", include(router.urls)),
     path("users/", include("users.urls")),
     path("dashboard/summary/", DashboardSummaryView.as_view(), name="dashboard-summary"),
+    path("crawler/", include("crawler_tasks.crawler_urls")),
 ]
 

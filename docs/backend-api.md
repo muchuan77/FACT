@@ -9,6 +9,15 @@
 - **数据格式**：JSON
 - **认证**：MVP 阶段不启用复杂认证（后续扩展）
 
+## Windows 中文请求注意事项（开发环境）
+
+- Windows PowerShell 直接发送中文 JSON 可能导致入库字段乱码（与终端编码/JSON 序列化相关）。
+- 推荐用 Python `requests.post(..., json=payload)` 测试中文任务与关键词：
+  - `python scripts/test_create_chinese_crawler_task.py`
+- 若出现历史乱码/测试数据，可在开发环境清理：
+  - `python manage.py reset_demo_data --yes`
+  - `python manage.py seed_crawler_sources`
+
 ## 1. 接口总览表
 
 | 模块 | 接口 | 方法 | 功能 | 状态 |
@@ -26,6 +35,17 @@
 | governance | `/api/governance/{id}/` | GET | 治理记录详情 | MVP（只读） |
 | crawler_tasks | `/api/crawler-tasks/` | GET | 爬虫任务列表 | MVP（只读，不接入真实爬虫） |
 | crawler_tasks | `/api/crawler-tasks/{id}/` | GET | 爬虫任务详情 | MVP（只读） |
+| crawler_control | `/api/crawler/sources/` | GET/POST | 采集源管理（RSS/static/dynamic） | v1.3.0 |
+| crawler_control | `/api/crawler/topics/` | GET/POST | 监控主题管理 | v1.3.0 |
+| crawler_control | `/api/crawler/tasks/` | GET/POST | 任务管理（monitor/search） | v1.3.0 |
+| crawler_control | `/api/crawler/tasks/{id}/` | GET | 任务详情 | v1.3.0 |
+| crawler_control | `/api/crawler/tasks/{id}/start/` | POST | 启动任务（状态变更） | v1.3.0 |
+| crawler_control | `/api/crawler/tasks/{id}/pause/` | POST | 暂停任务（状态变更） | v1.3.0 |
+| crawler_control | `/api/crawler/tasks/{id}/resume/` | POST | 恢复任务（状态变更） | v1.3.0 |
+| crawler_control | `/api/crawler/tasks/{id}/stop/` | POST | 停止任务（状态变更） | v1.3.0 |
+| crawler_control | `/api/crawler/tasks/{id}/run-now/` | POST | 立即执行一次（v1.3.0 同步 RSS） | v1.3.0 |
+| crawler_control | `/api/crawler/tasks/{id}/runs/` | GET | 查看任务运行历史 | v1.3.0 |
+| crawler_control | `/api/crawler/runs/{id}/items/` | GET | 查看某次运行的明细条目 | v1.3.0 |
 | model_versions | `/api/model-versions/` | GET | 模型版本列表 | MVP（只读） |
 | model_versions | `/api/model-versions/{id}/` | GET | 模型版本详情 | MVP（只读） |
 | dashboard | `/api/dashboard/summary/` | GET | 数据大屏统计摘要 | 已完成（MVP） |
