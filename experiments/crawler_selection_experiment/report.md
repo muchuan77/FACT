@@ -139,6 +139,8 @@ final\_score =
 
 - `experiments/crawler_selection_experiment/results/stage2_real_world/real_validation_result.csv`
 - `experiments/crawler_selection_experiment/results/stage2_real_world/real_validation_result.json`
+- `experiments/crawler_selection_experiment/results/stage2_real_world/real_validation_items.csv`
+- `experiments/crawler_selection_experiment/results/stage2_real_world/real_validation_items.json`
 
 本阶段只验证：
 
@@ -169,6 +171,24 @@ final\_score =
 
 - 若真实验证出现大面积 `robots` 限制或解析不可用，则需要调整数据源范围或补充适配规则；
 - 若真实验证可稳定获取核心字段，则确认第一阶段选型可用于系统实现。
+
+### 9.5 第二阶段执行结果（已完成）
+
+第二阶段已在 **国内公开源** 上完成最小闭环验证（合规优先、非大规模采集），验证源清单如下：
+
+- static_news：`china_gov_policy_static`（中国政府网政策栏目）
+- rss_api：`china_daily_china_rss`（中国日报 RSS），`chinanews_society_rss`（中新网社会 RSS，备用源）
+- dynamic_page：`nbs_data_dynamic`（国家统计局国家数据平台，JavaScript 渲染）
+
+第二阶段汇总结果以 `real_validation_result.csv/json` 为准；抽取明细可在 `real_validation_items.json/csv` 中逐条查看 `title/content/keywords/missing_fields/is_valid`：
+
+- **static_news**：robots=allowed，采集与字段抽取通过（`status=ok`）
+- **rss_api**：robots=allowed，feedparser 解析通过（`status=ok`；记录 `feed_title/entries_count/bozo` 等诊断字段）
+- **dynamic_page（nbs_data_dynamic）**：robots=allowed，Playwright 渲染后可稳定抽取“数据栏目/入口”类文本（`status=ok`）。该源为统计数据平台类页面，`publish_time` 允许为空，不作为 valid_count 的必填字段；本阶段关注的是 **JS 渲染后可见栏目/入口的抽取能力**。
+
+论文口径建议：
+
+- 第二阶段“通过/失败”不等价于技术优劣排序：它用于验证第一阶段选型在真实公开源中的**可落地性**，并暴露合规/网络/页面结构差异导致的工程风险点。
 
 ## 10. 可视化结果说明（论文插图）
 
