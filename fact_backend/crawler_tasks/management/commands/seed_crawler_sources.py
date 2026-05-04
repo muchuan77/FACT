@@ -51,11 +51,22 @@ DEFAULT_SOURCES: list[dict] = [
         "rate_limit_seconds": 0,
         "description": "在仓库 fact_crawler/static_demo 目录执行: python -m http.server 8765 ，启用本源并设 base_url 同上；本地演示不做 robots 检查",
     },
+    {
+        "source_code": "local_dynamic_demo",
+        "name": "本地动态演示页面（需 http.server，默认关闭）",
+        "source_type": CrawlerSource.SourceType.DYNAMIC,
+        "base_url": "http://127.0.0.1:8766/index.html",
+        "adapter_name": "scrapy_playwright_dynamic",
+        "enabled": False,
+        "robots_required": False,
+        "rate_limit_seconds": 0,
+        "description": "v1.5.0 Scrapy+Playwright；见 fact_crawler/dynamic_demo/README.txt；需 playwright install chromium",
+    },
 ]
 
 
 class Command(BaseCommand):
-    help = "Seed default crawler sources (v1.4.1: upsert by source_code)"
+    help = "Seed default crawler sources (v1.5.0: upsert by source_code, includes local_dynamic_demo)"
 
     def handle(self, *args, **options):
         created = 0

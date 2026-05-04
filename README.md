@@ -16,8 +16,8 @@ FACT（Full name: **F**alsehood & **A**larm **C**ontrol for public **T**rends）
   前端可视化展示：数据大屏、舆情列表、识别结果、风险预警、趋势图表等。  
   通过 Axios 调用 Django 后端接口（不直接调用模型服务）。
 
-- **fact_crawler（Scrapy / Requests）**  
-  公开舆情/新闻/辟谣平台数据采集。采集数据优先通过 Django API 入库。
+- **fact_crawler（Scrapy / Requests / Playwright）**  
+  公开舆情/新闻/辟谣平台数据采集（RSS、静态 Scrapy、**v1.5.0+** 动态 Scrapy+Playwright）。采集数据优先通过 Django API 入库。
 
 ## 模块划分（目录说明）
 
@@ -26,7 +26,7 @@ FACT（Full name: **F**alsehood & **A**larm **C**ontrol for public **T**rends）
 - `fact_backend/`：Django + DRF 业务后台（**已完成 MVP 可运行与最小闭环接口**）。
 - `fact_model_service/`：FastAPI 模型推理服务（**已完成 mock 推理服务，可稳定返回固定 JSON**）。
 - `fact_frontend/`：Vue3 前端工程（**MVP 已联调**：Dashboard、舆情录入/分析/列表等，见 `fact_frontend/README.md`）。
-- `fact_crawler/`：采集模块（**RSS + `scrapy_static` 已接入** `run-now`，见 `fact_crawler/README.md`）。
+- `fact_crawler/`：采集模块（**RSS + `scrapy_static` + `scrapy_playwright_dynamic` 已接入** `run-now`，见 `fact_crawler/README.md`）。
 - `datasets/`：公开数据集与自采集数据存放区。
 - `experiments/`：训练/评估/基线实验代码（与在线推理解耦）。
 - `docs/`：论文材料、接口文档、系统设计文档。
@@ -52,7 +52,7 @@ FACT（Full name: **F**alsehood & **A**larm **C**ontrol for public **T**rends）
 
 ## 当前状态（概览）
 
-项目已迭代至 **v1.4.x**（爬虫控制中心、RSS、`scrapy_static`、gov.cn `/zhengce/` 列表/详情增强、`source_code` 稳定源标识等）。**按版本的交付范围与能力边界**见下文各节；**v1.0.0 发布级清单**见 `docs/releases/v1.0.0.md`。更细的决策与排障过程见 `DEVLOG.md`。
+项目已迭代至 **v1.5.x**（在 v1.4.x 基础上增加 **Scrapy + Playwright 动态页** 子进程适配器与 `local_dynamic_demo` 等）。**按版本的交付范围与能力边界**见下文各节；**v1.0.0 发布级清单**见 `docs/releases/v1.0.0.md`。更细的决策与排障过程见 `DEVLOG.md`。
 
 ## v1.0.0：手动录入型 MVP（首个可演示版本）
 
@@ -90,8 +90,8 @@ FACT（Full name: **F**alsehood & **A**larm **C**ontrol for public **T**rends）
 
 将 v1.1 / v1.2 实验结论落地到工程（不再在仓库内做 A/B 对比实验）：
 
-- **选型延续**：static_news → Scrapy（**v1.4.0** 起 `scrapy_static` 适配器）；rss_api → Requests + feedparser；dynamic_page → Scrapy + Playwright（**v1.5.0** 规划）。
-- **后端**：`/api/crawler/*` — sources / topics / tasks / runs / items，以及 start、pause、resume、stop、**`run-now`**（同步执行已绑定的 **RSS 与 static** 源，结果写入 `OpinionData`，可选 `auto_analyze`）。
+- **选型延续**：static_news → Scrapy（**v1.4.0** 起 `scrapy_static` 适配器）；rss_api → Requests + feedparser；dynamic_page → Scrapy + Playwright（**v1.5.0** 起 `scrapy_playwright_dynamic` 适配器）。
+- **后端**：`/api/crawler/*` — sources / topics / tasks / runs / items，以及 start、pause、resume、stop、**`run-now`**（同步执行已绑定的 **RSS、static 与 dynamic** 源，结果写入 `OpinionData`，可选 `auto_analyze`）。
 
 ## v1.4.0：静态页 Scrapy 采集（`scrapy_static` + static_demo + gov.cn 初版）
 
@@ -102,7 +102,7 @@ FACT（Full name: **F**alsehood & **A**larm **C**ontrol for public **T**rends）
 
 ## v1.4.1：采集源 `source_code`（稳定业务键）
 
-- `CrawlerSource` 增加 **`source_code`**（`SlugField`，唯一），种子源固定：`chinanews_society_rss`、`china_daily_rss`、`gov_zhengce_static`、`local_static_demo`。
+- `CrawlerSource` 增加 **`source_code`**（`SlugField`，唯一），种子源固定：`chinanews_society_rss`、`china_daily_rss`、`gov_zhengce_static`、`local_static_demo`、`local_dynamic_demo`（动态演示默认 **enabled=false**）。
 - **`GET /api/crawler/sources/`** 默认按 **`id` 升序**（与上述种子写入顺序一致）；仍支持 **`?source_code=`** 筛选。
 - **`local_static_demo`** 默认 **`robots_required=False`**（本地 `http.server` 演示，不做 robots 检查）。
 - **`seed_crawler_sources`** 按 **`source_code` 幂等 upsert**（存在则更新字段，不存在则创建）；**勿在脚本里写死** 数据库自增 **`id`**（`reset_demo_data` 后 id 会变）。
@@ -121,6 +121,15 @@ FACT（Full name: **F**alsehood & **A**larm **C**ontrol for public **T**rends）
 - **根因**：详情曾仅用「正文容器切片」后的 HTML 建唯一 `Selector`，**`<title>` / head 内 meta 丢失** → 正文很长但 **title 为空**。
 - **做法**：**`full_sel`**（unwrap 后**全文**，抽标题、meta、时间、来源）与 **`content_sel`**（从正文容器起切片，**只抽正文**）分离；标题多级兜底（含 **`Request.meta["link_text"]`** 列表锚文本）；**`_gov_clean_title`** 去掉 `_中国政府网` 等站点后缀。
 - **skip 语义**：`[gov.cn zhengce detail skip] reason='title_empty'|'body_too_short'|'polluted:...'`；标题仍空时打印 **`[gov.cn zhengce detail title_empty_debug]`**（各候选 + `body_sample`）。adapter 在 gov 子进程结果缺 `title` 时 stderr 一行提示对照上述日志。
+
+## v1.5.0：Scrapy + Playwright 动态页（`scrapy_playwright_dynamic`）
+
+- **适配器**：`fact_crawler/crawler/scrapy_playwright_dynamic_adapter.py`，`adapter_name=scrapy_playwright_dynamic`，与 RSS/static 共用 **`run_task_once` → `OpinionItem` → `run-now` 去重/入库/`auto_analyze`**。
+- **子进程**：与 `scrapy_static` 一致，stdin 为 **UTF-8 JSON**、stdout **单行** `json.dumps(items, ensure_ascii=True)`、日志 **stderr**；父进程设置 **`PYTHONIOENCODING=utf-8`**、**`PYTHONUTF8=1`**，并将子进程 stderr 以 **`[scrapy_playwright_dynamic][subprocess stderr]`** 回显。
+- **本地演示**：`fact_crawler/dynamic_demo/index.html`（初始无卡片，**DOMContentLoaded + setTimeout** 后注入两条中文舆情卡片）；`python -m http.server 8766`；种子源 **`local_dynamic_demo`**（`http://127.0.0.1:8766/index.html`，默认 **enabled=false**）。
+- **依赖**：`pip install -r fact_crawler/requirements.txt` 后执行 **`python -m playwright install chromium`**（`fact_backend/requirements.txt` 已同步声明 `scrapy-playwright` / `playwright`，便于与 Django 同环境跑 `run-now`）。
+- **联调**：`python scripts/test_create_chinese_crawler_task.py --mode dynamic --source-code local_dynamic_demo --no-keyword-filter --max-items 2`（脚本对 `local_dynamic_demo` 会自动 **PATCH enabled=true** 并打印 `[INFO]`）。
+- **v1.6.0 规划**：平台站内/垂直搜索类采集（如贴吧、微博、B 站、小红书等）仅做架构与 `source_code` 命名预留，**本版本不实现对应采集器**。
 
 ## 文档入口
 
@@ -173,4 +182,13 @@ python manage.py runserver 127.0.0.1:8000
 - 开发阶段若数据库已出现历史乱码/测试数据，可执行：
   - `python manage.py reset_demo_data --yes`（可选 `--reset-sequences`，见 `docs/backend-api.md`）
   - `python manage.py migrate && python manage.py seed_crawler_sources`
+
+### 动态采集依赖（v1.5.0+，可选）
+
+若使用 **`scrapy_playwright_dynamic`** 或 `local_dynamic_demo`：
+
+```bash
+python -m pip install -r fact_crawler/requirements.txt
+python -m playwright install chromium
+```
 

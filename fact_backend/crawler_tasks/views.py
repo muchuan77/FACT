@@ -54,7 +54,7 @@ class TopicProfileViewSet(viewsets.ModelViewSet):
 
 class CrawlerTaskControlViewSet(viewsets.ModelViewSet):
     """
-    任务控制中心：创建任务、切换状态、run-now（同步执行 RSS + 静态 Scrapy）。
+    任务控制中心：创建任务、切换状态、run-now（同步执行 RSS + 静态 Scrapy + 动态 Playwright）。
     """
 
     queryset = CrawlerTask.objects.all().order_by("-id")
@@ -99,7 +99,7 @@ class CrawlerTaskControlViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"], url_path="run-now")
     def run_now(self, request, pk=None):
         """
-        同步执行一次任务：RSS（rss_feedparser）与静态页（scrapy_static）。
+        同步执行一次任务：RSS（rss_feedparser）、静态页（scrapy_static）、动态页（scrapy_playwright_dynamic）。
         结构上预留后续 Celery/beat：这里只做同步 run-now MVP。
         """
         task: CrawlerTask = self.get_object()
@@ -131,13 +131,20 @@ class CrawlerTaskControlViewSet(viewsets.ModelViewSet):
                 for s in enabled_sources
                 if s.source_type == CrawlerSource.SourceType.STATIC and s.adapter_name == "scrapy_static"
             ]
-            crawl_sources = rss_sources + static_sources
+            dynamic_sources = [
+                s
+                for s in enabled_sources
+                if s.source_type == CrawlerSource.SourceType.DYNAMIC
+                and s.adapter_name == "scrapy_playwright_dynamic"
+            ]
+            crawl_sources = rss_sources + static_sources + dynamic_sources
 
             if not crawl_sources:
                 run.status = CrawlerRun.Status.FAILED
                 run.finished_at = timezone.now()
                 run.error_message = (
-                    "no enabled crawlable sources: need RSS+rss_feedparser and/or STATIC+scrapy_static"
+                    "no enabled crawlable sources: need RSS+rss_feedparser and/or STATIC+scrapy_static "
+                    "and/or DYNAMIC+scrapy_playwright_dynamic"
                 )
                 run.save()
                 return Response({"status": "failed", "run_id": run.id, "error": run.error_message}, status=400)

@@ -48,6 +48,32 @@ def _pick_by_id(sources: list[dict], sid: int) -> dict | None:
     return None
 
 
+def _ensure_source_enabled(backend: str, src: dict) -> tuple[dict, bool]:
+    """若 local_dynamic_demo 且 enabled=false，则 PATCH 为 true。返回 (最新 src, 是否执行了 PATCH)。"""
+    code = str(src.get("source_code") or "")
+    if code != "local_dynamic_demo" or src.get("enabled") is True:
+        return src, False
+    sid = src.get("id")
+    if not isinstance(sid, int):
+        return src, False
+    patch = requests.patch(
+        f"{backend}/api/crawler/sources/{sid}/",
+        json={"enabled": True},
+        timeout=15,
+    )
+    if patch.status_code >= 400:
+        print(
+            f"[WARN] PATCH enable local_dynamic_demo failed http={patch.status_code}: {patch.text}",
+            flush=True,
+        )
+        return src, False
+    data = patch.json()
+    if isinstance(data, dict):
+        return data, True
+    refreshed = _pick_by_id(_sources_list(backend), sid)
+    return refreshed or src, True
+
+
 def _resolve_source(
     backend: str,
     mode: str,
@@ -84,6 +110,8 @@ def _resolve_source(
     # 自动：按 mode 选默认 source_code
     if mode == "static":
         code = "local_static_demo"
+    elif mode == "dynamic":
+        code = "local_dynamic_demo"
     else:
         code = "chinanews_society_rss"
     src = _pick_by_code(sources, code)
@@ -91,8 +119,12 @@ def _resolve_source(
         return src, warnings
 
     # 回退：按类型挑第一个可用源
-    want_type = "static" if mode == "static" else "rss"
-    want_adapter = "scrapy_static" if mode == "static" else "rss_feedparser"
+    if mode == "static":
+        want_type, want_adapter = "static", "scrapy_static"
+    elif mode == "dynamic":
+        want_type, want_adapter = "dynamic", "scrapy_playwright_dynamic"
+    else:
+        want_type, want_adapter = "rss", "rss_feedparser"
     for s in sources:
         if not isinstance(s, dict):
             continue
@@ -112,6 +144,12 @@ def _validate_mode_source(mode: str, src: dict) -> str | None:
         if src.get("source_type") != "static" or src.get("adapter_name") != "scrapy_static":
             return (
                 f"--mode static 要求 source_type=static 且 adapter_name=scrapy_static；"
+                f"当前为 source_type={src.get('source_type')!r} adapter_name={src.get('adapter_name')!r}"
+            )
+    elif mode == "dynamic":
+        if src.get("source_type") != "dynamic" or src.get("adapter_name") != "scrapy_playwright_dynamic":
+            return (
+                f"--mode dynamic 要求 source_type=dynamic 且 adapter_name=scrapy_playwright_dynamic；"
                 f"当前为 source_type={src.get('source_type')!r} adapter_name={src.get('adapter_name')!r}"
             )
     else:
@@ -153,7 +191,12 @@ def _print_sample_items(backend: str, task_id: int, run_id: int) -> None:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--mode", choices=("rss", "static"), default="rss", help="Pick default source_code when not specified.")
+    ap.add_argument(
+        "--mode",
+        choices=("rss", "static", "dynamic"),
+        default="rss",
+        help="Pick default source_code when not specified.",
+    )
     ap.add_argument("--source-id", type=int, default=None)
     ap.add_argument("--source-code", type=str, default=None, help="Stable slug (recommended), e.g. local_static_demo.")
     ap.add_argument("--keyword", type=str, default="社会")
@@ -179,6 +222,11 @@ def main() -> int:
     for w in warns:
         print("[WARN]", w, flush=True)
 
+    if args.mode == "dynamic" and str(src.get("source_code") or "") == "local_dynamic_demo":
+        src, patched = _ensure_source_enabled(backend, src)
+        if patched:
+            print("[INFO] 已将 CrawlerSource local_dynamic_demo PATCH 为 enabled=true（便于联调）。", flush=True)
+
     err = _validate_mode_source(args.mode, src)
     if err:
         print("[ERROR]", err, flush=True)
@@ -200,10 +248,16 @@ def main() -> int:
     print("using mode:", args.mode)
 
     if args.no_keyword_filter:
-        task_name = "中文采集测试-不过滤关键词" if args.mode == "rss" else "静态采集测试-不过滤关键词"
+        if args.mode == "rss":
+            task_name = "中文采集测试-不过滤关键词"
+        elif args.mode == "static":
+            task_name = "静态采集测试-不过滤关键词"
+        else:
+            task_name = "动态采集测试-不过滤关键词"
         keywords = []
     else:
-        task_name = f"{'RSS' if args.mode == 'rss' else '静态'}主动搜索测试-{args.keyword}"
+        label = {"rss": "RSS", "static": "静态", "dynamic": "动态"}[args.mode]
+        task_name = f"{label}主动搜索测试-{args.keyword}"
         keywords = [args.keyword]
 
     payload = {
@@ -229,7 +283,8 @@ def main() -> int:
     if not task_id:
         return 2
 
-    run = requests.post(f"{backend}/api/crawler/tasks/{task_id}/run-now/", json={}, timeout=120)
+    run_timeout = 600 if args.mode == "dynamic" else 120
+    run = requests.post(f"{backend}/api/crawler/tasks/{task_id}/run-now/", json={}, timeout=run_timeout)
     print("run_now status_code:", run.status_code)
     print("run_now response.text:", run.text)
     if run.status_code >= 400:
@@ -243,6 +298,13 @@ def main() -> int:
             "[HINT] static run total_fetched=0：请查看运行 Django 的终端中 "
             "[gov.cn zhengce list diagnostics]（detail_links_count、list_page_response.status、"
             "href_preview_first20、Content-Type、reason）及 [scrapy_static][gov.cn subprocess stderr]",
+            flush=True,
+        )
+    if args.mode == "dynamic" and fetched == 0:
+        print(
+            "[HINT] dynamic run total_fetched=0：请确认 fact_crawler/dynamic_demo 已 "
+            "`python -m http.server 8766`，已执行 `python -m playwright install chromium`，"
+            "并查看 Django 终端 / 本脚本旁 stderr 中的 [scrapy_playwright_dynamic diagnostics] 字段。",
             flush=True,
         )
     if inserted > 0 and run_id is not None:

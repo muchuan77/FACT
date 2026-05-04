@@ -15,8 +15,8 @@
 
 - Windows PowerShell 直接发送中文 JSON 可能导致入库字段乱码（与终端编码/JSON 序列化相关）。
 - 推荐用 Python `requests.post(..., json=payload)` 测试中文任务与关键词：
-  - `python scripts/test_create_chinese_crawler_task.py`（`--mode rss` 或 `--mode static`）
-- `run-now` 若含静态源，请在 Django 解释器环境中安装 Scrapy：`pip install scrapy`（或与 `fact_backend/requirements.txt` 一致）
+  - `python scripts/test_create_chinese_crawler_task.py`（`--mode rss` / `--mode static` / **`--mode dynamic`**）
+- `run-now` 若含静态/动态源，请在 Django 解释器环境中安装与 `fact_backend/requirements.txt` 一致的依赖（含 **Scrapy**；动态源另需 **`scrapy-playwright`**、**`playwright`** 并执行 **`python -m playwright install chromium`**）
 - 若出现历史乱码/测试数据，可在开发环境清理：
   - `python manage.py reset_demo_data --yes`（可选 `--reset-sequences` 见下文）
   - `python manage.py seed_crawler_sources`
@@ -46,7 +46,7 @@
 | crawler_control | `/api/crawler/tasks/{id}/pause/` | POST | 暂停任务（状态变更） | v1.3.0 |
 | crawler_control | `/api/crawler/tasks/{id}/resume/` | POST | 恢复任务（状态变更） | v1.3.0 |
 | crawler_control | `/api/crawler/tasks/{id}/stop/` | POST | 停止任务（状态变更） | v1.3.0 |
-| crawler_control | `/api/crawler/tasks/{id}/run-now/` | POST | 立即执行一次（同步 RSS + 静态 Scrapy） | v1.4.0 |
+| crawler_control | `/api/crawler/tasks/{id}/run-now/` | POST | 立即执行一次（同步 RSS + 静态 Scrapy + 动态 Playwright） | v1.5.0 |
 | crawler_control | `/api/crawler/tasks/{id}/runs/` | GET | 查看任务运行历史 | v1.3.0 |
 | crawler_control | `/api/crawler/runs/{id}/items/` | GET | 查看某次运行的明细条目 | v1.3.0 |
 | model_versions | `/api/model-versions/` | GET | 模型版本列表 | MVP（只读） |
@@ -294,25 +294,27 @@ curl -X POST "http://127.0.0.1:8000/api/opinions/1/analyze/" -H "Content-Type: a
 
 - **`CrawlerSource.id`**：数据库主键，自增；开发环境执行 `reset_demo_data` 后重新 `seed` 时 **id 可能变化**，**不建议在脚本或集成里写死**。
 - **`CrawlerSource.source_code`**：`SlugField`，全表唯一、**稳定业务标识**；默认种子源固定为：
-  - `chinanews_society_rss`、`china_daily_rss`、`gov_zhengce_static`、`local_static_demo`
+  - `chinanews_society_rss`、`china_daily_rss`、`gov_zhengce_static`、`local_static_demo`、`local_dynamic_demo`（动态演示默认 **enabled=false**）
 - **列表/详情**：`GET/POST /api/crawler/sources/` 的 JSON 中均包含 `source_code`；**列表默认按 `id` 升序**（与种子写入顺序一致）；可按 **`GET /api/crawler/sources/?source_code=local_static_demo`** 精确定位一条源。
 - **`local_static_demo`** 种子默认 **`robots_required=false`**（本地 `http.server` 演示）。
-- **后续扩展**：平台搜索类源也将使用 `source_code` 命名，例如 `tieba_search`、`bilibili_search`、`weibo_search`、`xiaohongshu_search`（当前版本未实现对应采集器）。
+- **后续扩展（v1.6.0 规划）**：平台站内/垂直搜索类源将使用 `source_code` 命名（如 `tieba_search`、`bilibili_search`、`weibo_search`、`xiaohongshu_search`）；**v1.5.0 不实现**对应采集器与登录/反爬逻辑。
 
 ### 9.1 `POST /api/crawler/tasks/{id}/run-now/` 支持的源
 
 - **RSS**：`source_type=rss` 且 `adapter_name=rss_feedparser`（与 v1.3.0 相同）。
 - **静态列表+详情**：`source_type=static` 且 `adapter_name=scrapy_static`；适配器见 `fact_crawler/crawler/scrapy_static_adapter.py`，本地演示见 `fact_crawler/static_demo/README.txt`。
-- 任务可绑定多源；`run-now` 会依次执行所有已启用的 RSS 与 static 源，共用同一 `CrawlerRun` 与去重/入库逻辑。
+- **动态单页（Playwright）**：`source_type=dynamic` 且 `adapter_name=scrapy_playwright_dynamic`；适配器见 `fact_crawler/crawler/scrapy_playwright_dynamic_adapter.py`，本地演示见 `fact_crawler/dynamic_demo/README.txt`（需 `python -m playwright install chromium` 与本地 `http.server`）。
+- 任务可绑定多源；`run-now` 会依次执行所有已启用的 **RSS、static、dynamic** 源，共用同一 `CrawlerRun` 与去重/入库逻辑。
 
 ### 9.2 dry_run
 
 - 请求体 JSON：`{"dry_run": true}` 时仍会写入 `CrawlerRun` / `CrawledItem`，但不创建 `OpinionData`，也不会触发 `auto_analyze`。
 
-### 9.3 静态采集实现说明（Twisted reactor）
+### 9.3 静态 / 动态采集实现说明（Twisted reactor + 子进程）
 
-- `scrapy_static` 默认在**子进程**中跑 Scrapy，避免与 Django `runserver` 同进程内 Twisted reactor 冲突（否则可能出现 `ReactorAlreadyRunning` / `ReactorNotRestartable`，且 `str(异常)` 为空导致接口 `error` 字段为空）。
-- 调试如需在同进程跑爬虫，可设环境变量 `FACT_SCRAPY_STATIC_INPROCESS=1`（不推荐在生产使用）。
+- **`scrapy_static`** 与 **`scrapy_playwright_dynamic`** 默认均在**子进程**中跑 Scrapy（动态源另启 Playwright Chromium），避免与 Django `runserver` 同进程内 Twisted / asyncio 冲突（否则可能出现 `ReactorAlreadyRunning` / `ReactorNotRestartable`，且 `str(异常)` 为空导致接口 `error` 字段为空）。
+- 调试如需在同进程跑爬虫，可设环境变量 **`FACT_SCRAPY_STATIC_INPROCESS=1`** 或 **`FACT_SCRAPY_PLAYWRIGHT_INPROCESS=1`**（不推荐在生产使用）。
+- 动态子进程默认超时（秒）可由环境变量 **`FACT_SCRAPY_PLAYWRIGHT_SUBPROCESS_TIMEOUT`** 覆盖（默认 `480`）。
 
 ### 9.4 开发清库与自增主键（`reset_demo_data --reset-sequences`）
 
