@@ -1,15 +1,18 @@
 # experiments
 
-用于存放模型训练、评估、消融实验、基线实验相关代码与记录。
+模型训练、评估、消融与**采集技术选型等**离线实验代码；与在线 **`fact_model_service` 推理解耦**，不混入业务后台。
 
-## 边界与约束
+## 边界
 
-- 与在线推理服务 `fact_model_service` 解耦：训练/评估代码不直接混入业务后台。
-- 第一阶段不进行训练，仅保留目录与后续规范入口。
+- 不在此目录实现生产爬虫入库逻辑（生产路径见 **`fact_crawler`** + **`fact_backend`** `/api/crawler/*`）。
+- 选型实验详见 **`crawler_selection_experiment/`**。
 
-## 当前已完成内容（与主系统解耦）
+## 当前内容
 
-- `crawler_selection_experiment/`：采集技术选型实验
-  - 第一阶段：本地 mock 受控对比实验（产出评分、结论与图表）
-  - 第二阶段：国内公开源小规模真实验证（合规优先 + 可诊断输出，产出汇总结果与抽取明细）
+- **`crawler_selection_experiment/`**  
+  - 第一阶段：本地 `mock_sources` 受控对比（见该目录 `README.md`）  
+  - 第二阶段：少量公开源真实验证（见 `real_world_validation/README.md`）
 
+## 文档
+
+- 工程版本与采集能力总览：**[../README.md](../README.md)**、**[../DEVLOG.md](../DEVLOG.md)**

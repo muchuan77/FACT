@@ -43,4 +43,8 @@ npm run dev
 
 默认前端地址：`http://127.0.0.1:5173`
 
+## 进一步阅读
+
+- 工程版本总览：**[../README.md](../README.md)**
+- 文档索引：**[../docs/README.md](../docs/README.md)**
 

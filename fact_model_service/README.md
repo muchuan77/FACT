@@ -117,4 +117,7 @@ curl -X POST "http://127.0.0.1:8001/predict/rumor" ^
   -d "{\"text\":\"网传某地发生严重事故，引发大量关注。\"}"
 ```
 
+## 进一步阅读
 
+- 工程版本与联调总览：**[../README.md](../README.md)**
+- 文档索引：**[../docs/README.md](../docs/README.md)**

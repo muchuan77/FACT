@@ -2,6 +2,8 @@
 
 本文档整理当前 FACT `fact_backend`（Django + DRF）已实现的 MVP 接口，用于前端对接与论文材料沉淀。
 
+**文档导航**：索引见 **[README.md](README.md)**；版本总览见根目录 **[../README.md](../README.md)**。
+
 ## 基础信息
 
 - **服务地址（开发）**：`http://127.0.0.1:8000`

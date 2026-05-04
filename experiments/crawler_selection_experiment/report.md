@@ -1,5 +1,7 @@
 # 自动化舆情采集技术对比与选型实验报告（模板）
 
+> **说明**：本文为论文/报告写作模板；**定量结果以 `experiments/crawler_selection_experiment/results/` 下由脚本生成的 CSV/JSON 为准**，勿仅依赖文内示例数值。
+
 > 项目：FACT（网络舆情风险预警与谣言治理系统）  
 > 实验主题：自动化舆情采集技术对比与选型  
 > 数据源：本地 mock_sources（不访问外网）

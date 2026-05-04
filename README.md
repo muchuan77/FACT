@@ -25,8 +25,8 @@ FACT（Full name: **F**alsehood & **A**larm **C**ontrol for public **T**rends）
 
 - `fact_backend/`：Django + DRF 业务后台（**已完成 MVP 可运行与最小闭环接口**）。
 - `fact_model_service/`：FastAPI 模型推理服务（**已完成 mock 推理服务，可稳定返回固定 JSON**）。
-- `fact_frontend/`：Vue3 前端工程（后续提供最小页面与接口调用）。
-- `fact_crawler/`：采集模块（后续提供最小可运行的采集脚手架与入库方式）。
+- `fact_frontend/`：Vue3 前端工程（**MVP 已联调**：Dashboard、舆情录入/分析/列表等，见 `fact_frontend/README.md`）。
+- `fact_crawler/`：采集模块（**RSS + `scrapy_static` 已接入** `run-now`，见 `fact_crawler/README.md`）。
 - `datasets/`：公开数据集与自采集数据存放区。
 - `experiments/`：训练/评估/基线实验代码（与在线推理解耦）。
 - `docs/`：论文材料、接口文档、系统设计文档。
@@ -50,18 +50,22 @@ FACT（Full name: **F**alsehood & **A**larm **C**ontrol for public **T**rends）
 - 采集数据优先通过 Django API 入库。
 - 不编造未要求的功能（如管理员端、区块链、全网实时监测等）。
 
-## 当前状态
+## 当前状态（概览）
 
-截至目前（**v1.0.0 手动录入型 MVP 已完成并通过测试**）：
+项目已迭代至 **v1.4.x**（爬虫控制中心、RSS、`scrapy_static`、gov.cn `/zhengce/` 列表/详情增强、`source_code` 稳定源标识等）。**按版本的交付范围与能力边界**见下文各节；**v1.0.0 发布级清单**见 `docs/releases/v1.0.0.md`。更细的决策与排障过程见 `DEVLOG.md`。
 
-- **fact_model_service（已完成并通过测试）**
-  - 可用接口：`GET /health`、`POST /predict/rumor`、`POST /predict/sentiment`、`POST /predict/full`
-  - 当前为 mock 逻辑，不加载真实模型权重
+## v1.0.0：手动录入型 MVP（首个可演示版本）
 
-- **fact_backend（已完成并通过测试）**
-  - SQLite 迁移可用，Django + DRF 可启动
-  - 已实现最小业务闭环：**新增舆情 → 触发分析 → 保存分析结果 → 生成风险预警 → dashboard 汇总统计**
-  - `POST /api/opinions/{id}/analyze/` 已加入**幂等逻辑**：重复调用不会重复创建 `AnalysisResult` 与 `RiskWarning`
+**定位**：不依赖外网自动采集，以前端录入 + 后端编排 + **mock 模型服务**打通「舆情 → 分析 → 预警 → 大屏」最小闭环，作为后续爬虫与真实模型的基线。
+
+- **fact_backend（Django + DRF）**  
+  SQLite 可迁移；舆情 `OpinionData` 的增删查改；`POST /api/opinions/{id}/analyze/` 调用模型服务并写入 `AnalysisResult`、生成 `RiskWarning`（**幂等**：重复分析不重复落库）；`GET /api/dashboard/summary/` 汇总统计；analysis / warnings / governance 等只读 API 占位。
+- **fact_model_service（FastAPI）**  
+  `GET /health`；`POST /predict/rumor`、`/predict/sentiment`、`/predict/full` 等 **mock 固定 JSON**，不加载真实权重。
+- **fact_frontend（Vue3）**  
+  舆情录入、关键词编辑/自动提取、触发分析、列表与 Dashboard 与后端联调展示。
+- **文档**  
+  `docs/releases/v1.0.0.md` 固化本版本功能、限制与后续方向。
 
 ## v1.1.0：第一阶段 mock 爬虫技术选型实验（已完成）
 
@@ -82,23 +86,19 @@ FACT（Full name: **F**alsehood & **A**larm **C**ontrol for public **T**rends）
   - `experiments/crawler_selection_experiment/results/stage2_real_world/real_validation_result.csv|json`
   - `experiments/crawler_selection_experiment/results/stage2_real_world/real_validation_items.csv|json`
 
-## v1.3.0：爬虫任务控制中心 + RSS 自动采集闭环（开发中）
+## v1.3.0：爬虫任务控制中心 + RSS 自动采集闭环（已完成）
 
-本版本用于将实验结论落地到工程框架中（不再做实验对比）：
+将 v1.1 / v1.2 实验结论落地到工程（不再在仓库内做 A/B 对比实验）：
 
-- static_news → Scrapy（v1.4.0 适配器实现）
-- rss_api → Requests + feedparser（v1.3.0 优先落地）
-- dynamic_page → Scrapy + Playwright（v1.5.0 适配器实现）
+- **选型延续**：static_news → Scrapy（**v1.4.0** 起 `scrapy_static` 适配器）；rss_api → Requests + feedparser；dynamic_page → Scrapy + Playwright（**v1.5.0** 规划）。
+- **后端**：`/api/crawler/*` — sources / topics / tasks / runs / items，以及 start、pause、resume、stop、**`run-now`**（同步执行已绑定的 **RSS 与 static** 源，结果写入 `OpinionData`，可选 `auto_analyze`）。
 
-后端新增 `/api/crawler/*` 任务控制中心，支持 sources/topics/tasks/runs/items 与 `run-now`（v1.3.0 同步执行 RSS），采集结果写入 `OpinionData` 并可选自动触发分析，从而让 Dashboard/Warnings/Analysis 看到自动采集后的数据。
+## v1.4.0：静态页 Scrapy 采集（`scrapy_static` + static_demo + gov.cn 初版）
 
-## v1.4.0：静态页 Scrapy 采集（static_demo / gov.cn）
-
-- `scrapy_static` 在子进程中跑 Scrapy，避免与 Django 同进程 Twisted reactor 冲突。
-- **本地 `python -m http.server` 页面**：响应头常缺少 `charset`，`response.text`/`response.css` 会按错误 encoding 解码；蜘蛛对 `127.0.0.1` / `localhost` 等使用 **`response.body.decode("utf-8", strict")` + `parsel.Selector`** 再抽取；子进程 JSON 使用 **`ensure_ascii=True`** 写 stdout，避免管道编码破坏中文。
-- **中国政府网政策 `https://www.gov.cn/zhengce/`**：列表链接规则已放宽（不强制 `content_`；gov.cn + `/zhengce/` + `.htm/.html/.shtml`；排除 index/list 等）；列表诊断与详情抽取失败信息打印到 **stderr**，`run-now` 子进程 stderr 由 adapter 回显到 Django 终端。
-- **v1.4.3 gov.cn 详情标题**：详情拆 **全文 selector**（`unwrap` 后整页，用于 `title`/meta/h1/时间/来源）与 **正文片段 selector**（仅从 `#UCAP-CONTENT` 等容器抽正文）；列表页对每条详情 `Request.meta["link_text"]` 传入锚文本作标题兜底；跳过原因统一为 `reason=title_empty` / `body_too_short` / `polluted:...`；标题空时另有 **`[gov.cn zhengce detail title_empty_debug]`** 打印各候选字段与 `body_sample`。
-- 演示页位于 `fact_crawler/static_demo/`（UTF-8 + `<meta charset="UTF-8">`）。清理旧测试数据：`cd fact_backend && python manage.py reset_demo_data --yes && python manage.py seed_crawler_sources`。
+- **`scrapy_static`**：默认在**子进程**中跑 Scrapy，避免与 Django `runserver` 同进程 Twisted reactor 冲突。
+- **本地 `python -m http.server`（`static_demo`）**：响应头常无 `charset`；对本机使用 **`response.body.decode("utf-8", strict")` + `parsel.Selector`**；子进程 stdout 单行 **`json.dumps(..., ensure_ascii=True)`**，配合 `PYTHONUTF8` 等，减轻 Windows 管道中文损坏。
+- **gov.cn `/zhengce/`（初版）**：列表链规则（gov.cn + `/zhengce/` + `.htm/.html/.shtml`、排除 index/list 等）；**`[gov.cn zhengce list diagnostics]`** 等诊断输出到 stderr，adapter 对 gov 子进程 stderr 做回显。
+- **演示**：`fact_crawler/static_demo/`（UTF-8 + `<meta charset="UTF-8">`）。清库后重种子：`cd fact_backend && python manage.py reset_demo_data --yes && python manage.py seed_crawler_sources`。
 
 ## v1.4.1：采集源 `source_code`（稳定业务键）
 
@@ -109,9 +109,23 @@ FACT（Full name: **F**alsehood & **A**larm **C**ontrol for public **T**rends）
 - 联调推荐：`python scripts/test_create_chinese_crawler_task.py --mode static --source-code local_static_demo --no-keyword-filter`
 - 开发可选：`python manage.py reset_demo_data --yes --reset-sequences`（**SQLite** 下重置相关表 `sqlite_sequence`；其他引擎见命令提示与 `docs/backend-api.md`）。
 
+## v1.4.2：gov.cn `/zhengce/` 列表与正文抽取增强
+
+- **列表**：在原始 HTML（`utf-8` + `errors="replace"`）上用**正则抽取全部 `href`**，与 CSS 结果合并去重；若页面中段出现假 **`</html>`** 导致 parsel 只见头部，则在检测到尾部仍有 `/zhengce`、`.htm` 等内容时**截断前缀**再解析。
+- **链接**：`urljoin`、协议相对 `//` → `https:`；过滤 english / big5 / mail / login / `.js` `.css` `.pdf` `.zip` 等无效链。
+- **详情正文**：仅从 **`#UCAP-CONTENT` / `.pages_content` / `.article-content`** 抽文本；启发式判定 **CSS/JS/导航污染** 则 **`reason=polluted:...`** 跳过不入库。
+- **诊断**：列表日志增加 `selector_a_href_count`、`regex_href_raw_count` 等与合并 href 统计。
+
+## v1.4.3：gov.cn 详情标题与 `link_text`
+
+- **根因**：详情曾仅用「正文容器切片」后的 HTML 建唯一 `Selector`，**`<title>` / head 内 meta 丢失** → 正文很长但 **title 为空**。
+- **做法**：**`full_sel`**（unwrap 后**全文**，抽标题、meta、时间、来源）与 **`content_sel`**（从正文容器起切片，**只抽正文**）分离；标题多级兜底（含 **`Request.meta["link_text"]`** 列表锚文本）；**`_gov_clean_title`** 去掉 `_中国政府网` 等站点后缀。
+- **skip 语义**：`[gov.cn zhengce detail skip] reason='title_empty'|'body_too_short'|'polluted:...'`；标题仍空时打印 **`[gov.cn zhengce detail title_empty_debug]`**（各候选 + `body_sample`）。adapter 在 gov 子进程结果缺 `title` 时 stderr 一行提示对照上述日志。
+
 ## 文档入口
 
-- 后端 API 文档：`docs/backend-api.md`
+- **文档索引（推荐先读）**：`docs/README.md`
+- 后端 API：`docs/backend-api.md`
 - 开发日志：`DEVLOG.md`
 - 发布说明：`docs/releases/v1.0.0.md`
 
