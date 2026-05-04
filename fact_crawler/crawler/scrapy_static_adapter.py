@@ -130,6 +130,17 @@ class ScrapyStaticAdapter(BaseAdapter):
         if not out_b:
             return []
         collector: list[dict[str, Any]] = json.loads(out_b)
+        base_u = (cfg.get("base_url") or "").lower()
+        if "gov.cn" in base_u and "zhengce" in base_u:
+            for raw in collector:
+                if isinstance(raw, dict) and not (raw.get("title") or "").strip():
+                    print(
+                        "[scrapy_static][gov.cn] collector item missing title; see stderr above for "
+                        "[gov.cn zhengce detail skip] or [gov.cn zhengce detail title_empty_debug]",
+                        file=sys.stderr,
+                        flush=True,
+                    )
+                    break
         for i, raw in enumerate(collector[:2]):
             if not isinstance(raw, dict):
                 continue

@@ -97,6 +97,7 @@ FACT（Full name: **F**alsehood & **A**larm **C**ontrol for public **T**rends）
 - `scrapy_static` 在子进程中跑 Scrapy，避免与 Django 同进程 Twisted reactor 冲突。
 - **本地 `python -m http.server` 页面**：响应头常缺少 `charset`，`response.text`/`response.css` 会按错误 encoding 解码；蜘蛛对 `127.0.0.1` / `localhost` 等使用 **`response.body.decode("utf-8", strict")` + `parsel.Selector`** 再抽取；子进程 JSON 使用 **`ensure_ascii=True`** 写 stdout，避免管道编码破坏中文。
 - **中国政府网政策 `https://www.gov.cn/zhengce/`**：列表链接规则已放宽（不强制 `content_`；gov.cn + `/zhengce/` + `.htm/.html/.shtml`；排除 index/list 等）；列表诊断与详情抽取失败信息打印到 **stderr**，`run-now` 子进程 stderr 由 adapter 回显到 Django 终端。
+- **v1.4.3 gov.cn 详情标题**：详情拆 **全文 selector**（`unwrap` 后整页，用于 `title`/meta/h1/时间/来源）与 **正文片段 selector**（仅从 `#UCAP-CONTENT` 等容器抽正文）；列表页对每条详情 `Request.meta["link_text"]` 传入锚文本作标题兜底；跳过原因统一为 `reason=title_empty` / `body_too_short` / `polluted:...`；标题空时另有 **`[gov.cn zhengce detail title_empty_debug]`** 打印各候选字段与 `body_sample`。
 - 演示页位于 `fact_crawler/static_demo/`（UTF-8 + `<meta charset="UTF-8">`）。清理旧测试数据：`cd fact_backend && python manage.py reset_demo_data --yes && python manage.py seed_crawler_sources`。
 
 ## v1.4.1：采集源 `source_code`（稳定业务键）
