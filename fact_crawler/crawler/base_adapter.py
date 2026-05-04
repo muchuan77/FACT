@@ -17,6 +17,8 @@ class AdapterContext:
     risk_words: list[str]
     category: str
     max_items: int
+    rate_limit_seconds: float = 2.0
+    robots_required: bool = True
 
 
 class BaseAdapter(ABC):

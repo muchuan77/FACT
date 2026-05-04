@@ -5,8 +5,17 @@ from .models import CrawledItem, CrawlerRun, CrawlerSource, CrawlerTask, TopicPr
 
 @admin.register(CrawlerSource)
 class CrawlerSourceAdmin(admin.ModelAdmin):
-    list_display = ("id", "name", "source_type", "adapter_name", "enabled", "rate_limit_seconds", "robots_required")
-    search_fields = ("name", "base_url", "adapter_name")
+    list_display = (
+        "id",
+        "source_code",
+        "name",
+        "source_type",
+        "adapter_name",
+        "enabled",
+        "rate_limit_seconds",
+        "robots_required",
+    )
+    search_fields = ("source_code", "name", "base_url", "adapter_name")
     list_filter = ("source_type", "adapter_name", "enabled", "robots_required")
 
 

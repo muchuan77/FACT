@@ -1,5 +1,6 @@
 django>=5.0,<6.0
 djangorestframework>=3.14,<4.0
 requests>=2.31,<3.0
+scrapy>=2.11,<3.0
 django-cors-headers>=4.0
 

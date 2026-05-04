@@ -1,2 +1,4 @@
 requests
 feedparser
+scrapy>=2.11,<3.0
+parsel>=1.9.0

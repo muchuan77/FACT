@@ -92,6 +92,22 @@ FACT（Full name: **F**alsehood & **A**larm **C**ontrol for public **T**rends）
 
 后端新增 `/api/crawler/*` 任务控制中心，支持 sources/topics/tasks/runs/items 与 `run-now`（v1.3.0 同步执行 RSS），采集结果写入 `OpinionData` 并可选自动触发分析，从而让 Dashboard/Warnings/Analysis 看到自动采集后的数据。
 
+## v1.4.0：静态页 Scrapy 采集（static_demo / gov.cn）
+
+- `scrapy_static` 在子进程中跑 Scrapy，避免与 Django 同进程 Twisted reactor 冲突。
+- **本地 `python -m http.server` 页面**：响应头常缺少 `charset`，`response.text`/`response.css` 会按错误 encoding 解码；蜘蛛对 `127.0.0.1` / `localhost` 等使用 **`response.body.decode("utf-8", strict")` + `parsel.Selector`** 再抽取；子进程 JSON 使用 **`ensure_ascii=True`** 写 stdout，避免管道编码破坏中文。
+- **中国政府网政策 `https://www.gov.cn/zhengce/`**：列表链接规则已放宽（不强制 `content_`；gov.cn + `/zhengce/` + `.htm/.html/.shtml`；排除 index/list 等）；列表诊断与详情抽取失败信息打印到 **stderr**，`run-now` 子进程 stderr 由 adapter 回显到 Django 终端。
+- 演示页位于 `fact_crawler/static_demo/`（UTF-8 + `<meta charset="UTF-8">`）。清理旧测试数据：`cd fact_backend && python manage.py reset_demo_data --yes && python manage.py seed_crawler_sources`。
+
+## v1.4.1：采集源 `source_code`（稳定业务键）
+
+- `CrawlerSource` 增加 **`source_code`**（`SlugField`，唯一），种子源固定：`chinanews_society_rss`、`china_daily_rss`、`gov_zhengce_static`、`local_static_demo`。
+- **`GET /api/crawler/sources/`** 默认按 **`id` 升序**（与上述种子写入顺序一致）；仍支持 **`?source_code=`** 筛选。
+- **`local_static_demo`** 默认 **`robots_required=False`**（本地 `http.server` 演示，不做 robots 检查）。
+- **`seed_crawler_sources`** 按 **`source_code` 幂等 upsert**（存在则更新字段，不存在则创建）；**勿在脚本里写死** 数据库自增 **`id`**（`reset_demo_data` 后 id 会变）。
+- 联调推荐：`python scripts/test_create_chinese_crawler_task.py --mode static --source-code local_static_demo --no-keyword-filter`
+- 开发可选：`python manage.py reset_demo_data --yes --reset-sequences`（**SQLite** 下重置相关表 `sqlite_sequence`；其他引擎见命令提示与 `docs/backend-api.md`）。
+
 ## 文档入口
 
 - 后端 API 文档：`docs/backend-api.md`
@@ -136,9 +152,10 @@ python manage.py runserver 127.0.0.1:8000
 
 - 在 Windows PowerShell 中，直接用 `Invoke-RestMethod`/`curl.exe` 发送中文 JSON **可能出现乱码入库**（与终端编码/JSON 序列化相关）。
 - 推荐使用 Python `requests.post(..., json=payload)` 方式测试中文任务与关键词（见 `scripts/test_create_chinese_crawler_task.py`）。
+- **推荐** `--source-code <slug>` 指定采集源；`--source-id` 仅临时调试（清库后 id 会变）。
 - `scripts/test_create_chinese_crawler_task.py --no-keyword-filter`：用于验证**中文采集闭环**（不做关键词过滤，直接采集前 N 条）。
 - `scripts/test_create_chinese_crawler_task.py --keyword 社会`：用于验证**主动搜索过滤能力**（关键词命中才入库）。
 - 开发阶段若数据库已出现历史乱码/测试数据，可执行：
-  - `python manage.py reset_demo_data --yes`
-  - `python manage.py seed_crawler_sources`
+  - `python manage.py reset_demo_data --yes`（可选 `--reset-sequences`，见 `docs/backend-api.md`）
+  - `python manage.py migrate && python manage.py seed_crawler_sources`
 

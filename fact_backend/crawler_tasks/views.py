@@ -35,8 +35,16 @@ class CrawlerTaskViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 class CrawlerSourceViewSet(viewsets.ModelViewSet):
-    queryset = CrawlerSource.objects.all().order_by("-id")
+    # 按主键升序，与 seed 写入顺序一致（chinanews → china_daily → gov → local）；勿按 source_code 字母序。
+    queryset = CrawlerSource.objects.all().order_by("id")
     serializer_class = CrawlerSourceSerializer
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        sc = (self.request.query_params.get("source_code") or "").strip()
+        if sc:
+            return qs.filter(source_code=sc)
+        return qs
 
 
 class TopicProfileViewSet(viewsets.ModelViewSet):
@@ -46,7 +54,7 @@ class TopicProfileViewSet(viewsets.ModelViewSet):
 
 class CrawlerTaskControlViewSet(viewsets.ModelViewSet):
     """
-    v1.3.0 任务控制中心：创建任务、切换状态、run-now（同步执行 RSS）。
+    任务控制中心：创建任务、切换状态、run-now（同步执行 RSS + 静态 Scrapy）。
     """
 
     queryset = CrawlerTask.objects.all().order_by("-id")
@@ -91,7 +99,7 @@ class CrawlerTaskControlViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"], url_path="run-now")
     def run_now(self, request, pk=None):
         """
-        同步执行一次任务（本轮仅执行 RSS + rss_feedparser 适配器）。
+        同步执行一次任务：RSS（rss_feedparser）与静态页（scrapy_static）。
         结构上预留后续 Celery/beat：这里只做同步 run-now MVP。
         """
         task: CrawlerTask = self.get_object()
@@ -118,12 +126,19 @@ class CrawlerTaskControlViewSet(viewsets.ModelViewSet):
                 for s in enabled_sources
                 if s.source_type == CrawlerSource.SourceType.RSS and s.adapter_name == "rss_feedparser"
             ]
+            static_sources = [
+                s
+                for s in enabled_sources
+                if s.source_type == CrawlerSource.SourceType.STATIC and s.adapter_name == "scrapy_static"
+            ]
+            crawl_sources = rss_sources + static_sources
 
-            # only support RSS in v1.3.0
-            if not rss_sources:
+            if not crawl_sources:
                 run.status = CrawlerRun.Status.FAILED
                 run.finished_at = timezone.now()
-                run.error_message = "no enabled rss sources with adapter rss_feedparser"
+                run.error_message = (
+                    "no enabled crawlable sources: need RSS+rss_feedparser and/or STATIC+scrapy_static"
+                )
                 run.save()
                 return Response({"status": "failed", "run_id": run.id, "error": run.error_message}, status=400)
 
@@ -138,7 +153,7 @@ class CrawlerTaskControlViewSet(viewsets.ModelViewSet):
             inserted_total = 0
             dup_total = 0
 
-            for src in rss_sources:
+            for src in crawl_sources:
                 items = run_task_once(
                     source_name=src.name,
                     adapter_name=src.adapter_name,
@@ -149,6 +164,8 @@ class CrawlerTaskControlViewSet(viewsets.ModelViewSet):
                     risk_words=risk_words,
                     category=(task.topic_profile.category if task.topic_profile else ""),
                     max_items=task.max_items_per_run,
+                    rate_limit_seconds=float(src.rate_limit_seconds or 0),
+                    robots_required=bool(src.robots_required),
                 )
                 fetched_total += len(items)
 
@@ -254,7 +271,17 @@ class CrawlerTaskControlViewSet(viewsets.ModelViewSet):
             run.save()
             task.status = CrawlerTask.Status.FAILED
             task.save(update_fields=["status", "updated_at"])
-            return Response({"status": "failed", "run_id": run.id, "error": str(e)}, status=500)
+            err_short = (str(e).strip() or repr(e) or type(e).__name__)
+            return Response(
+                {
+                    "status": "failed",
+                    "run_id": run.id,
+                    "error": err_short,
+                    "error_type": type(e).__name__,
+                    "error_message": (run.error_message or "")[:8000],
+                },
+                status=500,
+            )
 
     @action(detail=True, methods=["get"], url_path="runs")
     def runs(self, request, pk=None):

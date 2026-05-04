@@ -16,6 +16,11 @@ class CrawlerSource(models.Model):
         API = "api", "API"
         SEARCH = "search", "Search"
 
+    source_code = models.SlugField(
+        max_length=100,
+        unique=True,
+        help_text="稳定业务标识（脚本/集成用）；主键 id 在开发清库后会变。",
+    )
     name = models.CharField(max_length=200)
     source_type = models.CharField(max_length=20, choices=SourceType.choices)
     base_url = models.URLField()
@@ -29,7 +34,7 @@ class CrawlerSource(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self) -> str:
-        return f"{self.id}: {self.name} ({self.source_type}/{self.adapter_name})"
+        return f"{self.source_code} (pk={self.id}): {self.name} ({self.source_type}/{self.adapter_name})"
 
 
 class TopicProfile(models.Model):

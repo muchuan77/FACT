@@ -13,9 +13,10 @@
 
 - Windows PowerShell 直接发送中文 JSON 可能导致入库字段乱码（与终端编码/JSON 序列化相关）。
 - 推荐用 Python `requests.post(..., json=payload)` 测试中文任务与关键词：
-  - `python scripts/test_create_chinese_crawler_task.py`
+  - `python scripts/test_create_chinese_crawler_task.py`（`--mode rss` 或 `--mode static`）
+- `run-now` 若含静态源，请在 Django 解释器环境中安装 Scrapy：`pip install scrapy`（或与 `fact_backend/requirements.txt` 一致）
 - 若出现历史乱码/测试数据，可在开发环境清理：
-  - `python manage.py reset_demo_data --yes`
+  - `python manage.py reset_demo_data --yes`（可选 `--reset-sequences` 见下文）
   - `python manage.py seed_crawler_sources`
 
 ## 1. 接口总览表
@@ -35,7 +36,7 @@
 | governance | `/api/governance/{id}/` | GET | 治理记录详情 | MVP（只读） |
 | crawler_tasks | `/api/crawler-tasks/` | GET | 爬虫任务列表 | MVP（只读，不接入真实爬虫） |
 | crawler_tasks | `/api/crawler-tasks/{id}/` | GET | 爬虫任务详情 | MVP（只读） |
-| crawler_control | `/api/crawler/sources/` | GET/POST | 采集源管理（RSS/static/dynamic） | v1.3.0 |
+| crawler_control | `/api/crawler/sources/` | GET/POST | 采集源管理（含 `source_code` 稳定键） | v1.4.1 |
 | crawler_control | `/api/crawler/topics/` | GET/POST | 监控主题管理 | v1.3.0 |
 | crawler_control | `/api/crawler/tasks/` | GET/POST | 任务管理（monitor/search） | v1.3.0 |
 | crawler_control | `/api/crawler/tasks/{id}/` | GET | 任务详情 | v1.3.0 |
@@ -43,7 +44,7 @@
 | crawler_control | `/api/crawler/tasks/{id}/pause/` | POST | 暂停任务（状态变更） | v1.3.0 |
 | crawler_control | `/api/crawler/tasks/{id}/resume/` | POST | 恢复任务（状态变更） | v1.3.0 |
 | crawler_control | `/api/crawler/tasks/{id}/stop/` | POST | 停止任务（状态变更） | v1.3.0 |
-| crawler_control | `/api/crawler/tasks/{id}/run-now/` | POST | 立即执行一次（v1.3.0 同步 RSS） | v1.3.0 |
+| crawler_control | `/api/crawler/tasks/{id}/run-now/` | POST | 立即执行一次（同步 RSS + 静态 Scrapy） | v1.4.0 |
 | crawler_control | `/api/crawler/tasks/{id}/runs/` | GET | 查看任务运行历史 | v1.3.0 |
 | crawler_control | `/api/crawler/runs/{id}/items/` | GET | 查看某次运行的明细条目 | v1.3.0 |
 | model_versions | `/api/model-versions/` | GET | 模型版本列表 | MVP（只读） |
@@ -284,6 +285,38 @@ curl -X POST "http://127.0.0.1:8000/api/opinions/1/analyze/" -H "Content-Type: a
       - 生成规则：合并 `OpinionData.keywords` 与该舆情最新 `AnalysisResult.keywords`，去重、保持顺序，最多 8 个；都为空则为空数组
   - `latest_warnings`：最近 5 条预警（包含 `opinion_title`）
 - **状态**：已完成（MVP）
+
+## 9. crawler 控制中心（v1.4.0 补充）
+
+### 9.0 采集源稳定标识 `source_code`（v1.4.1）
+
+- **`CrawlerSource.id`**：数据库主键，自增；开发环境执行 `reset_demo_data` 后重新 `seed` 时 **id 可能变化**，**不建议在脚本或集成里写死**。
+- **`CrawlerSource.source_code`**：`SlugField`，全表唯一、**稳定业务标识**；默认种子源固定为：
+  - `chinanews_society_rss`、`china_daily_rss`、`gov_zhengce_static`、`local_static_demo`
+- **列表/详情**：`GET/POST /api/crawler/sources/` 的 JSON 中均包含 `source_code`；**列表默认按 `id` 升序**（与种子写入顺序一致）；可按 **`GET /api/crawler/sources/?source_code=local_static_demo`** 精确定位一条源。
+- **`local_static_demo`** 种子默认 **`robots_required=false`**（本地 `http.server` 演示）。
+- **后续扩展**：平台搜索类源也将使用 `source_code` 命名，例如 `tieba_search`、`bilibili_search`、`weibo_search`、`xiaohongshu_search`（当前版本未实现对应采集器）。
+
+### 9.1 `POST /api/crawler/tasks/{id}/run-now/` 支持的源
+
+- **RSS**：`source_type=rss` 且 `adapter_name=rss_feedparser`（与 v1.3.0 相同）。
+- **静态列表+详情**：`source_type=static` 且 `adapter_name=scrapy_static`；适配器见 `fact_crawler/crawler/scrapy_static_adapter.py`，本地演示见 `fact_crawler/static_demo/README.txt`。
+- 任务可绑定多源；`run-now` 会依次执行所有已启用的 RSS 与 static 源，共用同一 `CrawlerRun` 与去重/入库逻辑。
+
+### 9.2 dry_run
+
+- 请求体 JSON：`{"dry_run": true}` 时仍会写入 `CrawlerRun` / `CrawledItem`，但不创建 `OpinionData`，也不会触发 `auto_analyze`。
+
+### 9.3 静态采集实现说明（Twisted reactor）
+
+- `scrapy_static` 默认在**子进程**中跑 Scrapy，避免与 Django `runserver` 同进程内 Twisted reactor 冲突（否则可能出现 `ReactorAlreadyRunning` / `ReactorNotRestartable`，且 `str(异常)` 为空导致接口 `error` 字段为空）。
+- 调试如需在同进程跑爬虫，可设环境变量 `FACT_SCRAPY_STATIC_INPROCESS=1`（不推荐在生产使用）。
+
+### 9.4 开发清库与自增主键（`reset_demo_data --reset-sequences`）
+
+- **仅开发环境**：`python manage.py reset_demo_data --yes --reset-sequences`
+  - **SQLite**：在删除演示数据后，额外清理 `sqlite_sequence` 中与本次删除相关的表项，使下次插入时主键从 1 起跳。
+  - **PostgreSQL / MySQL**：命令会打印说明，需自行用 `sqlsequencereset` / `ALTER SEQUENCE` / `ALTER TABLE ... AUTO_INCREMENT` 处理；生产部署**不依赖**自增 id，请用 **`source_code`** 引用采集源。
 
 ## 说明：两类关键词的区别（重要）
 

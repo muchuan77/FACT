@@ -28,6 +28,8 @@ def run_task_once(
     risk_words: list[str],
     category: str,
     max_items: int,
+    rate_limit_seconds: float = 2.0,
+    robots_required: bool = True,
 ) -> list[OpinionItem]:
     adapter = _get_adapter(adapter_name)
     ctx = AdapterContext(
@@ -39,6 +41,8 @@ def run_task_once(
         risk_words=risk_words,
         category=category,
         max_items=max_items,
+        rate_limit_seconds=rate_limit_seconds,
+        robots_required=robots_required,
     )
     return adapter.fetch(ctx)
 

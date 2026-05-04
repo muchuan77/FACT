@@ -76,6 +76,7 @@ class CrawlerSourceSerializer(serializers.ModelSerializer):
         model = CrawlerSource
         fields = [
             "id",
+            "source_code",
             "name",
             "source_type",
             "base_url",
